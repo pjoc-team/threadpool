@@ -25,6 +25,22 @@ type threadPool struct {
 	ctx context.Context
 }
 
+// NewPool create thread pool with size
+func NewPool(ctx context.Context, size int) (ThreadPool, error) {
+	if size <= 0 {
+		return nil, ErrPoolSizeMustPresent
+	}
+	wc := make(chan func(), size)
+	p := &threadPool{
+		wc:  wc,
+		ctx: ctx,
+	}
+	for i := 0; i < size; i++ {
+		go p.watch()
+	}
+	return p, nil
+}
+
 func (t *threadPool) Go(f func()) error {
 	select {
 	case t.wc <- f:
@@ -42,25 +58,10 @@ func (t *threadPool) watch() {
 	for {
 		select {
 		case f := <-t.wc:
-			go func() {
-				f()
-			}()
+			f()
 		case <-t.ctx.Done():
 			return
 		}
 	}
 }
 
-// NewPool create thread pool with size
-func NewPool(ctx context.Context, size int) (ThreadPool, error) {
-	if size <= 0 {
-		return nil, ErrPoolSizeMustPresent
-	}
-	wc := make(chan func(), size)
-	p := &threadPool{
-		wc:  wc,
-		ctx: ctx,
-	}
-	go p.watch()
-	return p, nil
-}
